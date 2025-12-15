@@ -71,7 +71,7 @@ steps:
   - title: Run the client
     commands:
       public:
-        - run: read a;kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker1 --pod-running-timeout=5m
+        - run: kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker1 --pod-running-timeout=5m
   - standard: skupper/cleaning_up/kubernetes_cli
     commands:
       public:

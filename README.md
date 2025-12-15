@@ -226,7 +226,7 @@ skupper connector create broker1 5672
 _**Public:**_
 
 ~~~ shell
-read a;kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker1 --pod-running-timeout=5m
+kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker1 --pod-running-timeout=5m
 ~~~
 
 ## Cleaning up
