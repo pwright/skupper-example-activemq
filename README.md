@@ -1,17 +1,35 @@
+<!-- NOTE: This file is generated from skewer.yaml.  Do not edit it directly. -->
+
 # Accessing an ActiveMQ message broker using Skupper
 
-Use public cloud resources to process data from a private message broker
+[![main](https://github.com/pwright/skupper-example-activemq/actions/workflows/main.yaml/badge.svg)](https://github.com/pwright/skupper-example-activemq/actions/workflows/main.yaml)
+
+#### Use public cloud resources to process data from a private message broker
+
+This example is part of a [suite of examples][examples] showing the
+different ways you can use [Skupper][website] to connect services
+across cloud providers, data centers, and edge sites.
+
+[website]: https://skupper.io/
+[examples]: https://skupper.io/examples/index.html
+
+#### Contents
 
 * [Overview](#overview)
 * [Prerequisites](#prerequisites)
-* [Step 1: Configure separate console sessions](#step-1-configure-separate-console-sessions)
-* [Step 2: Log in to your clusters](#step-2-log-in-to-your-clusters)
-* [Step 3: Set the current namespaces](#step-3-set-the-current-namespaces)
-* [Step 4: Install Skupper in your namespaces](#step-4-install-skupper-in-your-namespaces)
-* [Step 5: Link your namespaces](#step-5-link-your-namespaces)
-* [Step 6: Deploy the message broker](#step-6-deploy-the-message-broker)
-* [Step 7: Expose the message broker](#step-7-expose-the-message-broker)
-* [Step 8: Run the client](#step-8-run-the-client)
+* [Step 1: Access your Kubernetes clusters](#step-1-access-your-kubernetes-clusters)
+* [Step 2: Create your Kubernetes namespaces](#step-2-create-your-kubernetes-namespaces)
+* [Step 3: Install Skupper on your Kubernetes clusters](#step-3-install-skupper-on-your-kubernetes-clusters)
+* [Step 4: Install the Skupper command-line tool](#step-4-install-the-skupper-command-line-tool)
+* [Step 5: Deploy the message broker](#step-5-deploy-the-message-broker)
+* [Step 6: Create your sites](#step-6-create-your-sites)
+* [Step 7: Link your sites](#step-7-link-your-sites)
+* [Step 8: Expose the message broker](#step-8-expose-the-message-broker)
+* [Step 9: Run the client](#step-9-run-the-client)
+* [Cleaning up](#cleaning-up)
+* [Summary](#summary)
+* [Next steps](#next-steps)
+* [About this example](#about-this-example)
 
 ## Overview
 
@@ -21,178 +39,236 @@ exposing it to the public internet.
 
 It contains two services:
 
-* An ActiveMQ broker named "broker1" running in a private data center.
-  The broker has a queue named "queue1".
+* An ActiveMQ broker named `broker1` running in a private data center.
+  The broker has a queue named `queue1`.
 
 * An AMQP client running in the public cloud.  It sends 10 messages
-  to "queue1" and then receives them back.
+  to `queue1` and then receives them back.
 
-The example uses two Kubernetes namespaces, "private" and "public",
+The example uses two Kubernetes namespaces, `private` and `public`,
 to represent the private data center and public cloud.
 
 ## Prerequisites
 
+* Access to at least one Kubernetes cluster, from [any provider you
+  choose][kube-providers].
+
 * The `kubectl` command-line tool, version 1.15 or later
-  ([installation guide][install-kubectl])
+  ([installation guide][install-kubectl]).
 
-* The `skupper` command-line tool, the latest version ([installation
-  guide][install-skupper])
-
-* Access to two Kubernetes namespaces, from any providers you choose,
-  on any clusters you choose
-
+[kube-providers]: https://skupper.io/start/kubernetes.html
 [install-kubectl]: https://kubernetes.io/docs/tasks/tools/install-kubectl/
-[install-skupper]: https://skupper.io/start/index.html#step-1-install-the-skupper-command-line-tool-in-your-environment
 
+## Step 1: Access your Kubernetes clusters
 
-## Step 1: Configure separate console sessions
-
-Skupper is designed for use with multiple namespaces, typically on
-different clusters.  The `skupper` command uses your
-[kubeconfig][kubeconfig] and current context to select the namespace
-where it operates.
+Skupper is designed for use with multiple Kubernetes clusters.
+The `skupper` and `kubectl` commands use your
+[kubeconfig][kubeconfig] and current context to select the cluster
+and namespace where they operate.
 
 [kubeconfig]: https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
 
-Your kubeconfig is stored in a file in your home directory.  The
-`skupper` and `kubectl` commands use the `KUBECONFIG` environment
-variable to locate it.
+This example uses multiple cluster contexts at once. The
+`KUBECONFIG` environment variable tells `skupper` and `kubectl`
+which kubeconfig to use.
 
-A single kubeconfig supports only one active context per user.
-Since you will be using multiple contexts at once in this
-exercise, you need to create distinct kubeconfigs.
+For each cluster, open a new terminal window.  In each terminal,
+set the `KUBECONFIG` environment variable to a different path and
+log in to your cluster.
 
-Start a console session for each of your namespaces.  Set the
-`KUBECONFIG` environment variable to a different path in each
-session.
-
-
-Console for _public_:
+_**Public:**_
 
 ~~~ shell
 export KUBECONFIG=~/.kube/config-public
+<provider-specific login command>
 ~~~
 
-Console for _private_:
+_**Private:**_
 
 ~~~ shell
 export KUBECONFIG=~/.kube/config-private
+<provider-specific login command>
 ~~~
 
-## Step 2: Log in to your clusters
+**Note:** The login procedure varies by provider.
 
-The methods for logging in vary by Kubernetes provider.  Find
-the instructions for your chosen providers and use them to
-authenticate and configure access for each console session.  See
-the following links for more information:
+## Step 2: Create your Kubernetes namespaces
 
-* [Minikube](https://skupper.io/start/minikube.html#logging-in)
-* [Amazon Elastic Kubernetes Service (EKS)](https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html)
-* [Azure Kubernetes Service (AKS)](https://docs.microsoft.com/en-us/azure/aks/kubernetes-walkthrough#connect-to-the-cluster)
-* [Google Kubernetes Engine (GKE)](https://skupper.io/start/gke.html#logging-in)
-* [IBM Kubernetes Service](https://skupper.io/start/ibmks.html#logging-in)
-* [OpenShift](https://skupper.io/start/openshift.html#logging-in)
+The example application has different components deployed to
+different Kubernetes namespaces.  To set up our example, we need
+to create the namespaces.
 
+For each cluster, use `kubectl create namespace` and `kubectl
+config set-context` to create the namespace you wish to use and
+set the namespace on your current context.
 
-## Step 3: Set the current namespaces
-
-Use `kubectl create namespace` to create the namespaces you wish to
-use (or use existing namespaces).  Use `kubectl config set-context` to
-set the current namespace for each session.
-
-
-Console for _public_:
+_**Public:**_
 
 ~~~ shell
 kubectl create namespace public
 kubectl config set-context --current --namespace public
 ~~~
 
-Console for _private_:
+_**Private:**_
 
 ~~~ shell
 kubectl create namespace private
 kubectl config set-context --current --namespace private
 ~~~
 
-## Step 4: Install Skupper in your namespaces
+## Step 3: Install Skupper on your Kubernetes clusters
 
-The `skupper init` command installs the Skupper router and service
-controller in the current namespace.  Run the `skupper init` command
-in each namespace.
+Using Skupper on Kubernetes requires the installation of the
+Skupper custom resource definitions (CRDs) and the Skupper
+controller.
 
-[minikube-tunnel]: https://skupper.io/start/minikube.html#running-minikube-tunnel
+For each cluster, use `kubectl apply` with the Skupper
+installation YAML to install the CRDs and controller.
 
-**Note:** If you are using Minikube, [you need to start `minikube
-tunnel`][minikube-tunnel] before you install Skupper.
-
-
-Console for _public_:
+_**Public:**_
 
 ~~~ shell
-skupper init
+kubectl apply -f https://skupper.io/v2/install.yaml
 ~~~
 
-Console for _private_:
+_**Private:**_
 
 ~~~ shell
-skupper init --ingress none
+kubectl apply -f https://skupper.io/v2/install.yaml
 ~~~
 
-## Step 5: Link your namespaces
+## Step 4: Install the Skupper command-line tool
 
-Creating a link requires use of two `skupper` commands in conjunction,
-`skupper token create` and `skupper link create`.
+This example uses the Skupper command-line tool to create Skupper
+resources.  You need to install the `skupper` command only once
+for each development environment.
 
-The `skupper token create` command generates a secret token that
-signifies permission to create a link.  The token also carries the
-link details.  The `skupper link create` command then uses the link
-token to create a link to the namespace that generated it.
-
-**Note:** The link token is truly a *secret*.  Anyone who has the
-token can link to your namespace.  Make sure that only those you trust
-have access to it.
-
-
-Console for _public_:
+On Linux or Mac, you can use the install script (inspect it
+[here][install-script]) to download and extract the command:
 
 ~~~ shell
-skupper token create ~/public.token
+curl https://skupper.io/v2/install.sh | sh
 ~~~
 
-Console for _private_:
+The script installs the command under your home directory.  It
+prompts you to add the command to your path if necessary.
 
-~~~ shell
-skupper link create ~/public.token
-skupper link status --wait 30
-~~~
+For Windows and other installation options, see [Installing
+Skupper][install-docs].
 
-## Step 6: Deploy the message broker
+[install-script]: https://github.com/skupperproject/skupper-website/blob/main/input/install.sh
+[install-docs]: https://skupper.io/install/
 
-Console for _private_:
+## Step 5: Deploy the message broker
+
+_**Private:**_
 
 ~~~ shell
 kubectl apply -f broker1.yaml
 ~~~
 
-## Step 7: Expose the message broker
+## Step 6: Create your sites
 
-Console for _private_:
+Use `skupper site create` to configure each location.  Enable link
+access on Public so it can issue tokens.  Disable ingress on
+Private to keep the broker hidden from the internet.
 
-~~~ shell
-skupper expose deployment/broker1 --port 5672
-~~~
-
-Console for _public_:
+_**Public:**_
 
 ~~~ shell
-kubectl get services
+skupper site create public --enable-link-access
 ~~~
 
-## Step 8: Run the client
-
-Console for _public_:
+_**Private:**_
 
 ~~~ shell
-kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker1
+skupper site create private
 ~~~
+
+## Step 7: Link your sites
+
+Use `skupper token issue` in Public to generate a token, then use
+`skupper token redeem` in Private to create the link.  The token is
+a secret; handle it carefully.
+
+_**Public:**_
+
+~~~ shell
+skupper token issue ~/public.token
+~~~
+
+_**Private:**_
+
+~~~ shell
+skupper token redeem ~/public.token
+~~~
+
+## Step 8: Expose the message broker
+
+Create a listener in Public where the client runs.  Create a
+connector in Private so the broker workload is reachable on the
+network under the service name `broker1`.
+
+_**Public:**_
+
+~~~ shell
+skupper listener create broker1 5672
+~~~
+
+_**Private:**_
+
+~~~ shell
+skupper connector create broker1 5672
+~~~
+
+## Step 9: Run the client
+
+_**Public:**_
+
+~~~ shell
+read a;kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker1 --pod-running-timeout=5m
+~~~
+
+## Cleaning up
+
+To remove Skupper and the other resources from this exercise, use
+the following commands.
+
+_**Public:**_
+
+~~~ shell
+skupper site delete --all
+~~~
+
+_**Private:**_
+
+~~~ shell
+skupper site delete --all
+kubectl delete deployment/broker1
+~~~
+
+## Summary
+
+Skupper creates a virtual application network that lets the client in
+`public` reach the broker in `private` without exposing the broker to
+the internet.  The listener in `public` makes `broker1` appear local,
+and the connector in `private` forwards the traffic to the actual
+Artemis deployment.
+
+## Next steps
+
+Check out the other [examples][examples] on the Skupper website.
+
+## About this example
+
+This example was produced using [Skewer][skewer], a library for
+documenting and testing Skupper examples.
+
+[skewer]: https://github.com/skupperproject/skewer
+
+Skewer provides utility functions for generating the README and
+running the example steps.  Use the `./plano` command in the project
+root to see what is available.
+
+To quickly stand up the example using Minikube, try the `./plano demo`
+command.
